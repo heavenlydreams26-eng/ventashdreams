@@ -1,0 +1,96 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "System user with different roles (GERENTE, SUPERVISOR, ASESOR)",
+      "type": "object",
+      "properties": {
+        "nombre": { "type": "string" },
+        "apellidoPaterno": { "type": "string" },
+        "apellidoMaterno": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["GERENTE", "SUPERVISOR", "ASESOR"] },
+        "zonaOperativa": { "type": "string" },
+        "supervisor": { "type": "string" },
+        "puesto": { "type": "string" },
+        "telefono": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nombre", "apellidoPaterno", "email", "role"]
+    },
+    "Sale": {
+      "title": "Sale",
+      "description": "A customer sale or contract capture",
+      "type": "object",
+      "properties": {
+        "folio": { "type": "string" },
+        "tipoCliente": { "type": "string", "enum": ["linea_nueva", "portado", "cambio_domicilio"] },
+        "tipoServicio": { "type": "string", "enum": ["residencial", "negocio"] },
+        "categoriaProducto": { "type": "string", "enum": ["infinitum_puro", "doble_play", "triple_play"] },
+        "nombres": { "type": "string" },
+        "apellidoPaterno": { "type": "string" },
+        "apellidoMaterno": { "type": "string" },
+        "curp": { "type": "string" },
+        "telefonoTitular": { "type": "string" },
+        "calle": { "type": "string" },
+        "numeroExterior": { "type": "string" },
+        "codigoPostal": { "type": "string" },
+        "colonia": { "type": "string" },
+        "ciudad": { "type": "string" },
+        "delegacion": { "type": "string" },
+        "coordenadas": { "type": "string" },
+        "packageId": { "type": "string" },
+        "paqueteNombre": { "type": "string" },
+        "rentaMensual": { "type": "number" },
+        "asesorId": { "type": "string" },
+        "fechaSolicitud": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["PROCESADO", "PENDIENTE", "RECHAZADO"] }
+      },
+      "required": ["folio", "nombres", "apellidoPaterno", "packageId", "rentaMensual", "asesorId"]
+    },
+    "SupportTicket": {
+      "title": "SupportTicket",
+      "description": "Customer support request",
+      "type": "object",
+      "properties": {
+        "cliente": { "type": "string" },
+        "telefono": { "type": "string" },
+        "asunto": { "type": "string" },
+        "estado": { "type": "string", "enum": ["ABIERTO", "EN PROGRESO", "RESUELTO", "CERRADO"] },
+        "prioridad": { "type": "string", "enum": ["ALTA", "MEDIA", "BAJA"] },
+        "agenteId": { "type": "string" },
+        "fecha": { "type": "string", "format": "date-time" }
+      },
+      "required": ["cliente", "asunto", "estado", "prioridad"]
+    },
+    "ApiKey": {
+      "title": "ApiKey",
+      "description": "Stored API key for external services",
+      "type": "object",
+      "properties": {
+        "service": { "type": "string" },
+        "key": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["service", "key"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection of system users"
+    },
+    "/sales/{saleId}": {
+      "schema": "Sale",
+      "description": "Collection of sales/contracts"
+    },
+    "/tickets/{ticketId}": {
+      "schema": "SupportTicket",
+      "description": "Collection of support tickets"
+    },
+    "/apiKeys/{keyId}": {
+      "schema": "ApiKey",
+      "description": "Collection of encrypted API keys (demo: stored as strings)"
+    }
+  }
+}

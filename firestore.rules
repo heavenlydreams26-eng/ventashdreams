@@ -1,0 +1,137 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // -------------------------------------------------------------------------
+    // GLOBALS & HELPERS
+    // -------------------------------------------------------------------------
+    
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Role lookups - using get() which is allowed in rules
+    function getUserData(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+
+    function hasRole(uid, role) {
+      return isSignedIn() && getUserData(uid).role == role;
+    }
+
+    function isAdmin() {
+      // Hardened with email_verified check
+      return isEmailVerified() && (
+        getUserData(request.auth.uid).role == 'GERENTE' || 
+        request.auth.token.email == 'edgarlovera20@gmail.com'
+      );
+    }
+
+    function isSupervisor() {
+      return isEmailVerified() && (
+        getUserData(request.auth.uid).role == 'SUPERVISOR' || 
+        isAdmin()
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // ENTITY VALIDATIONS
+    // -------------------------------------------------------------------------
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['nombre', 'apellidoPaterno', 'email', 'role']) &&
+             data.nombre is string && data.nombre.size() > 0 && data.nombre.size() <= 100 &&
+             data.apellidoPaterno is string && data.apellidoPaterno.size() <= 100 &&
+             data.email == request.auth.token.email &&
+             data.role in ['GERENTE', 'SUPERVISOR', 'ASESOR'];
+    }
+
+    function isValidSale(data) {
+      return data.keys().hasAll(['folio', 'nombres', 'apellidoPaterno', 'packageId', 'rentaMensual', 'asesorId']) &&
+             data.folio is string && data.folio.size() <= 50 &&
+             data.nombres is string && data.nombres.size() <= 100 &&
+             data.rentaMensual is number && data.rentaMensual >= 0 &&
+             data.asesorId == request.auth.uid &&
+             (data.status == 'PENDIENTE' || !data.keys().contains('status'));
+    }
+
+    function isValidTicket(data) {
+      return data.keys().hasAll(['cliente', 'asunto', 'estado', 'prioridad']) &&
+             data.cliente is string && data.cliente.size() <= 100 &&
+             data.asunto is string && data.asunto.size() <= 200 &&
+             data.estado in ['ABIERTO', 'EN PROGRESO', 'RESUELTO', 'CERRADO'] &&
+             data.prioridad in ['ALTA', 'MEDIA', 'BAJA'];
+    }
+
+    // -------------------------------------------------------------------------
+    // COLLECTION MATCHES
+    // -------------------------------------------------------------------------
+
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      // Only email verified users can create their own profile
+      allow create: if isEmailVerified() && userId == request.auth.uid && isValidUser(incoming()) && 
+                    (incoming().role == 'ASESOR' || request.auth.token.email == 'edgarlovera20@gmail.com');
+      
+      allow update: if isEmailVerified() && userId == request.auth.uid && (
+        // Regular user updates restricted fields
+        (incoming().diff(existing()).affectedKeys().hasOnly(['nombre', 'apellidoPaterno', 'apellidoMaterno', 'telefono', 'puesto', 'avatarUrl'])) ||
+        // Gerente can update more (except immutable ones)
+        isAdmin()
+      );
+    }
+
+    match /sales/{saleId} {
+      allow get: if isEmailVerified() && (existing().asesorId == request.auth.uid || isSupervisor());
+      // Secure list query
+      allow list: if isEmailVerified() && (resource.data.asesorId == request.auth.uid || isSupervisor());
+      
+      allow create: if isEmailVerified() && isValidSale(incoming()) && isValidId(saleId);
+      
+      allow update: if isEmailVerified() && (
+        // Asesor updates pending sales
+        (existing().asesorId == request.auth.uid && existing().status == 'PENDIENTE' && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['nombres', 'apellidoPaterno', 'telefonoTitular', 'calle', 'numeroExterior', 'paqueteNombre', 'rentaMensual'])) ||
+        // Supervisor/Admin can change status
+        (isSupervisor() && incoming().diff(existing()).affectedKeys().hasOnly(['status'])) ||
+        isAdmin()
+      );
+      
+      allow delete: if isAdmin();
+    }
+
+    match /tickets/{ticketId} {
+      allow read: if isEmailVerified();
+      allow create: if isEmailVerified() && isValidTicket(incoming());
+      allow update: if isEmailVerified() && (
+        (existing().agenteId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['estado'])) ||
+        isAdmin()
+      );
+    }
+
+    match /apiKeys/{keyId} {
+      allow read, write: if isAdmin();
+    }
+  }
+}
